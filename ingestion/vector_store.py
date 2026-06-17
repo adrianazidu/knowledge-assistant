@@ -47,7 +47,16 @@ def _chroma_col():
     )
     return client.get_or_create_collection(
         name=config.CHROMA_COLLECTION,
-        metadata={"hnsw:space": "cosine"},
+        metadata={
+         # ef_construction: higher = better recall during indexing, slower build
+        "hnsw:construction_ef": 200,
+        # M: number of bi-directional links per node
+        # higher = better recall + more memory. 16-64 is typical range
+        "hnsw:M": 32,
+        # space: cosine for normalized embeddings, l2 for raw
+        #using HNSW index for optimization
+        "hnsw:space": "cosine",
+                }, 
     )
 
 def _chroma_save(chunks: list[dict]):
