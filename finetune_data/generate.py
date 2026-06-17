@@ -74,22 +74,27 @@ BACKENDS = {
     },
 }
 
-# Will be set by --backend flag in main()
-client       = None
-active_model = None
 
-OUTPUT_DIR   = "data/generated"
-FINAL_OUTPUT = "data/training_examples.json"
 
-os.makedirs(OUTPUT_DIR, exist_ok=True)
-os.makedirs("data", exist_ok=True)
 
 class FineTuning
 
-    def __init__(self,backend:str)
+   OUTPUT_DIR: Final   = "data/generated"
+   FINAL_OUTPUT: Final = "data/training_examples.json"
+
+   # Will be set by --backend flag in main()
+   client       = None
+   active_model = None
+
+
+    def __init__(self,backend:str):
+
+        os.makedirs(FineTuning.OUTPUT_DIR, exist_ok=True)
+        os.makedirs("data", exist_ok=True)
+
 
     def init_backend(backend_name: str):
-        global client, active_model
+
         if backend_name not in BACKENDS:
             raise ValueError(f"Unknown backend: {backend_name}. Choose: {list(BACKENDS)}")
 
@@ -104,18 +109,18 @@ class FineTuning
 
         #call this in all cases, OpenAi is just a python function that makes HTTP requests in the OpenAI API format. 
         #vLLM and Ollama both deliberately implement the exact same API format as OpenAI
-        client       = OpenAI(**kwargs)
-        active_model = b["model"]
+        self.client       = OpenAI(**kwargs)
+        self.active_model = b["model"]
 
         # Quick connectivity check
         try:
-            client.models.list()
-            print(f"  Model:   {active_model} ✅\n")
+            self.client.models.list()
+            print(f"  Model:   {self.active_model} ✅\n")
         except Exception as e:
             print(f"  ⚠️  Could not connect: {e}")
             if backend_name == "ollama":
                 print("     Make sure Ollama is running: ollama serve")
-                print(f"    And model is pulled: ollama pull {active_model}")
+                print(f"    And model is pulled: ollama pull {self.active_model}")
             elif backend_name == "vllm":
                 print("     Make sure vLLM is running: python main.py finetune serve")
             raise  #raise the original error so we won't loose it
@@ -147,11 +152,11 @@ class FineTuning
         )
 
             #temp 0.8 says be creative and various
-        raw      = call_gpt4o(prompt, temperature=temperature)
+        raw      = self.call_gpt4o(prompt, temperature=temperature)
 
         #parse_list converts raw text in objects (json string to json object)
         #validate each object to have the required structure
-        examples = validate(parse_list(raw))
+        examples = self.validate(self.parse_list(raw))
 
         #add metadata
         for ex in examples:
@@ -165,14 +170,14 @@ class FineTuning
         all_examples = seeds_tagged + examples
 
         #save it to json file called like the source
-        save_batch(all_examples, source)
+        self.save_batch(all_examples, source)
         return all_examples
 
 
 
 
-    def generate_tone(count: int = 50) -> list[dict]:
-        return generate(
+    def generate_tone(self,count: int = 50) -> list[dict]:
+        return self.generate(
                         seed_examples=seeds.TONE_EXAMPLES,
                         source="tone",
                         prompt_init=prompts.TONE_EXPAND_PROMPT,
@@ -181,7 +186,7 @@ class FineTuning
 
 
 
-    def generate_distillation() -> list[dict]:
+    def generate_distillation(self) -> list[dict]:
         print(f"\n  Generating distillation examples for {len(seeds.DOMAIN_QUESTIONS)} questions...")
         examples = []
 
@@ -191,7 +196,7 @@ class FineTuning
 
             # Distillation uses plain text response (not JSON format)
             # call standard py method to ask a question and receive an answer
-            answer = call_gpt4o(prompt, temperature=0.3)
+            answer = self.call_gpt4o(prompt, temperature=0.3)
 
             #append to list
             examples.append({
@@ -201,11 +206,11 @@ class FineTuning
                 "metadata":    {"source": "distillation_gpt4o", "generated": True}
             })
 
-        save_batch(examples, "distillation")
+        self.save_batch(examples, "distillation")
         return examples
 
 
-    def generate_structured(count_per_schema: int = 20) -> list[dict]:
+    def generate_structured(self,count_per_schema: int = 20) -> list[dict]:
         print(f"\n  Generating structured output examples...")
         all_examples = []
 
@@ -221,8 +226,8 @@ class FineTuning
                 schema=json.dumps(schema_def["schema"], indent=2),
                 examples=json.dumps(schema_def["examples"], indent=2),
             )
-            raw      = call_gpt4o(prompt, temperature=0.7)
-            new_exs  = parse_list(raw)
+            raw      = self.call_gpt4o(prompt, temperature=0.7)
+            new_exs  = self.parse_list(raw)
 
             # Convert to full training format with the instruction prepended
             formatted = []
@@ -247,21 +252,21 @@ class FineTuning
             all_examples.extend(formatted)
             print(f"    → {len(formatted)} examples for {schema_def['name']}")
 
-        save_batch(all_examples, "structured")
+        self.save_batch(all_examples, "structured")
         return all_examples
 
 
 
-    def generate_reasoning(count: int = 20) -> list[dict]:
-        return generate(
+    def generate_reasoning(self,count: int = 20) -> list[dict]:
+        return self.generate(
                         seed_examples=seeds.REASONING_EXAMPLES,
                         source="reasoning",
                         prompt_init=prompts.REASONING_EXPAND_PROMPT,
                         count=count
         )
 
-    def generate_refusals(count: int = 20) -> list[dict]:
-        return generate(
+    def generate_refusals(self,count: int = 20) -> list[dict]:
+        return self.generate(
                         seed_examples=seeds.REFUSAL_EXAMPLES,
                         source="refusal",
                         prompt_init=prompts.REFUSAL_EXPAND_PROMPT,
@@ -270,7 +275,7 @@ class FineTuning
 
 
 
-    def generate_synthetic(count_per_topic: int = 5) -> list[dict]:
+    def generate_synthetic(self,count_per_topic: int = 5) -> list[dict]:
         print(f"\n  Generating synthetic examples for {len(seeds.SYNTHETIC_TOPICS)} topics ({count_per_topic} each)...")
         all_examples = []
         style_example = json.dumps(seeds.TONE_EXAMPLES[0], indent=2)
@@ -283,186 +288,184 @@ class FineTuning
                 context=seeds.COMPANY_CONTEXT,
                 style_example=style_example,
             )
-            raw      = call_gpt4o(prompt, temperature=0.8)
-            examples = validate(parse_list(raw))
+            raw      = self.call_gpt4o(prompt, temperature=0.8)
+            examples = self.validate(self.parse_list(raw))
             for ex in examples:
                 ex["metadata"] = {"source": "synthetic", "topic": topic, "generated": True}
             all_examples.extend(examples)
 
-        save_batch(all_examples, "synthetic")
+        self.save_batch(all_examples, "synthetic")
         return all_examples
 
 
 
-# ════════════════════════════════════════════════════════════════════════
-#  HELPERS
-# ════════════════════════════════════════════════════════════════════════
+    # ════════════════════════════════════════════════════════════════════════
+    #  HELPERS
+    # ════════════════════════════════════════════════════════════════════════
 
-def save_batch(examples: list[dict], name: str) -> str:
-    path = os.path.join(OUTPUT_DIR, f"{name}.json")
-    # Load existing if present (append, don't overwrite)
+    def save_batch(self,examples: list[dict], name: str) -> str:
+        path = os.path.join(FineTuning.OUTPUT_DIR, f"{name}.json")
+        # Load existing if present (append, don't overwrite)
 
-    existing = []
-    if os.path.exists(path):
-        with open(path) as f:
-            existing = json.load(f)
+        existing = []
+        if os.path.exists(path):
+            with open(path) as f:
+                existing = json.load(f)
 
-    combined = existing + examples
+        combined = existing + examples
 
-    with open(path, "w") as f:
-        json.dump(combined, f, indent=2)
+        with open(path, "w") as f:
+            json.dump(combined, f, indent=2)
 
-    print(f"  Saved {len(examples)} new examples → {path} ({len(combined)} total)")
-    return path
+        print(f"  Saved {len(examples)} new examples → {path} ({len(combined)} total)")
+        return path
 
-def call_gpt4o(prompt: str, temperature: float = 0.7,
-               json_mode: bool = True) -> str:
+    def call_gpt4o(self,prompt: str, temperature: float = 0.7,
+                json_mode: bool = True) -> str:
 
-    """Call whichever backend is active. Falls back gracefully if json_mode unsupported."""
-    kwargs = dict(model=active_model,
-                  messages=[{"role": "user", "content": prompt},
-                            {"role": "system",   "content":   f"You are a senior backend engineer.\n{seeds.COMPANY_CONTEXT}"}],
-                  temperature=temperature)
-    if json_mode:
-        try:
-             # call standard py method to ask a question and receive an answer
-            resp = client.chat.completions.create(
-                **kwargs, response_format={"type": "json_object"})
-        except Exception:
-            resp = client.chat.completions.create(**kwargs)
-    else:
-        resp = client.chat.completions.create(**kwargs)
+        """Call whichever backend is active. Falls back gracefully if json_mode unsupported."""
+        kwargs = dict(model=self.active_model,
+                    messages=[{"role": "user", "content": prompt},
+                                {"role": "system",   "content":   f"You are a senior backend engineer.\n{seeds.COMPANY_CONTEXT}"}],
+                    temperature=temperature)
+        if json_mode:
+            try:
+                # call standard py method to ask a question and receive an answer
+                resp = self.client.chat.completions.create(
+                    **kwargs, response_format={"type": "json_object"})
+            except Exception:
+                resp = self.client.chat.completions.create(**kwargs)
+        else:
+            resp = self.client.chat.completions.create(**kwargs)
 
-    ##exract pure text of the response, stripping spaces 
-    return resp.choices[0].message.content.strip()
-
-
-def parse_list(raw: str) -> list[dict]:
-    """Extract a list of dicts from GPT-4o JSON response."""
-
-    parsed = json.loads(raw) # convert json string to object
-    if isinstance(parsed, list):
-        return parsed
-
-    # sometimes wrapped in a key like {"examples": [...]}
-    for v in parsed.values():
-        if isinstance(v, list):
-            return v
-
-    return []
-
-def validate(examples: list[dict]) -> list[dict]:
-    """Keep only examples that have instruction and output."""
-    valid = []
-    for ex in examples:
-        if ex.get("instruction") and ex.get("output"):
-            if not ex.get("input"):
-                ex["input"] = ""
-            valid.append(ex)
-    return valid
+        ##exract pure text of the response, stripping spaces 
+        return resp.choices[0].message.content.strip()
 
 
+    def parse_list(self,raw: str) -> list[dict]:
+        """Extract a list of dicts from GPT-4o JSON response."""
 
-# ════════════════════════════════════════════════════════════════════════
-#  MERGE — combine all generated files into one training_examples.json
-# ════════════════════════════════════════════════════════════════════════
+        parsed = json.loads(raw) # convert json string to object
+        if isinstance(parsed, list):
+            return parsed
 
-def merge():
-    """Combine all generated JSON files into the final training dataset."""
-    all_examples = []
-    sources      = {}
+        # sometimes wrapped in a key like {"examples": [...]}
+        for v in parsed.values():
+            if isinstance(v, list):
+                return v
 
-    for fname in sorted(os.listdir(OUTPUT_DIR)):
-        if not fname.endswith(".json"):
-            continue
-        path = os.path.join(OUTPUT_DIR, fname)
-        with open(path) as f:
-            examples = json.load(f)
-        all_examples.extend(examples)
-        sources[fname] = len(examples)
+        return []
 
-    with open(FINAL_OUTPUT, "w") as f:
-        json.dump(all_examples, f, indent=2)
-
-    print(f"\n  ── Merged training dataset ─────────────────────")
-    for src, count in sources.items():
-        print(f"  {src:<35} {count:>4} examples")
-    print(f"  {'─'*42}")
-    print(f"  {'TOTAL':<35} {len(all_examples):>4} examples")
-    print(f"\n  Output → {FINAL_OUTPUT}")
-    print(f"  Ready for: python main.py finetune prep\n")
-    return all_examples
+    def validate(self,examples: list[dict]) -> list[dict]:
+        """Keep only examples that have instruction and output."""
+        valid = []
+        for ex in examples:
+            if ex.get("instruction") and ex.get("output"):
+                if not ex.get("input"):
+                    ex["input"] = ""
+                valid.append(ex)
+        return valid
 
 
-# ════════════════════════════════════════════════════════════════════════
-#  STATS — show what's been generated so far
-# ════════════════════════════════════════════════════════════════════════
 
-def stats():
-    print(f"\n  ── Generated data stats ────────────────────────")
-    total = 0
-    for fname in sorted(os.listdir(OUTPUT_DIR)):
-        if not fname.endswith(".json"):
-            continue
-        with open(os.path.join(OUTPUT_DIR, fname)) as f:
-            n = len(json.load(f))
-        total += n
-        print(f"  {fname:<35} {n:>4} examples")
-    print(f"  {'─'*42}")
-    print(f"  {'TOTAL':<35} {total:>4} examples")
+    # ════════════════════════════════════════════════════════════════════════
+    #  MERGE — combine all generated files into one training_examples.json
+    # ════════════════════════════════════════════════════════════════════════
 
-    if os.path.exists(FINAL_OUTPUT):
-        with open(FINAL_OUTPUT) as f:
-            merged_count = len(json.load(f))
-        print(f"\n  Merged training_examples.json: {merged_count} examples")
-    print()
+    def merge(self):
+        """Combine all generated JSON files into the final training dataset."""
+        all_examples = []
+        sources      = {}
 
+        for fname in sorted(os.listdir(FineTuning.OUTPUT_DIR)):
+            if not fname.endswith(".json"):
+                continue
+            path = os.path.join(FineTuning.OUTPUT_DIR, fname)
+            with open(path) as f:
+                examples = json.load(f)
+            all_examples.extend(examples)
+            sources[fname] = len(examples)
 
-# ════════════════════════════════════════════════════════════════════════
-#  PREVIEW — show sample output before committing to a full generation
-# ════════════════════════════════════════════════════════════════════════
+        with open(FineTuning.FINAL_OUTPUT, "w") as f:
+            json.dump(all_examples, f, indent=2)
 
-def preview(type_name: str):
-    """Show 2 examples of what will be generated, without saving."""
-    print(f"\n  Preview: {type_name} (2 examples, not saved)\n")
-
-    if type_name == "tone":
-        result = generate_tone(count=2)
-        for ex in result[:2]:
-            _print_example(ex)
-
-    elif type_name == "distillation":
-        q = seeds.DOMAIN_QUESTIONS[0]
-        resp = client.chat.completions.create(
-            model=active_model,
-            messages=[{"role": "system", "content": seeds.COMPANY_CONTEXT},
-                      {"role": "user", "content": q}],
-            temperature=0.3,
-        )
-        _print_example({"instruction": q, "input": "", "output": resp.choices[0].message.content[:300] + "..."})
-
-    elif type_name == "structured":
-        schema = seeds.STRUCTURED_SCHEMAS[0]
-        print(f"  Schema: {schema['name']}")
-        print(f"  Instruction: {schema['instruction']}")
-        print(f"  Example input:  {schema['examples'][0]['input']}")
-        print(f"  Example output: {schema['examples'][0]['output']}\n")
-
-    elif type_name == "refusals":
-        print(f"  First seed refusal:")
-        _print_example(seeds.REFUSAL_EXAMPLES[0])
-
-def _print_example(ex: dict):
-    print(f"  instruction: {ex['instruction']}")
-    if ex.get("input"):
-        print(f"  input:       {ex['input'][:80]}")
-    print(f"  output:      {ex['output'][:200]}...")
-    print()
+        print(f"\n  ── Merged training dataset ─────────────────────")
+        for src, count in sources.items():
+            print(f"  {src:<35} {count:>4} examples")
+        print(f"  {'─'*42}")
+        print(f"  {'TOTAL':<35} {len(all_examples):>4} examples")
+        print(f"\n  Output → {FineTuning.FINAL_OUTPUT}")
+        print(f"  Ready for: python main.py finetune prep\n")
+        return all_examples
 
 
-# ════════════════════════════════════════════════════════════════════════
-#  MAIN
-# ════════════════════════════════════════════════════════════════════════
+    # ════════════════════════════════════════════════════════════════════════
+    #  STATS — show what's been generated so far
+    # ════════════════════════════════════════════════════════════════════════
+
+    def stats(self):
+        print(f"\n  ── Generated data stats ────────────────────────")
+        total = 0
+        for fname in sorted(os.listdir(FineTuning.OUTPUT_DIR)):
+            if not fname.endswith(".json"):
+                continue
+            with open(os.path.join(FineTuning.OUTPUT_DIR, fname)) as f:
+                n = len(json.load(f))
+            total += n
+            print(f"  {fname:<35} {n:>4} examples")
+        print(f"  {'─'*42}")
+        print(f"  {'TOTAL':<35} {total:>4} examples")
+
+        if os.path.exists(FineTuning.FINAL_OUTPUT):
+            with open(FineTuning.FINAL_OUTPUT) as f:
+                merged_count = len(json.load(f))
+            print(f"\n  Merged training_examples.json: {merged_count} examples")
+        print()
+
+
+    # ════════════════════════════════════════════════════════════════════════
+    #  PREVIEW — show sample output before committing to a full generation
+    # ════════════════════════════════════════════════════════════════════════
+
+    def preview(self,type_name: str):
+        """Show 2 examples of what will be generated, without saving."""
+        print(f"\n  Preview: {type_name} (2 examples, not saved)\n")
+
+        
+        if type_name == "tone":
+            result = self.generate_tone(count=2)
+            for ex in result[:2]:
+                self._print_example(ex)
+
+        elif type_name == "distillation":
+            q = seeds.DOMAIN_QUESTIONS[0]
+            resp = self.client.chat.completions.create(
+                model=self.active_model,
+                messages=[{"role": "system", "content": seeds.COMPANY_CONTEXT},
+                        {"role": "user", "content": q}],
+                temperature=0.3,
+            )
+            self._print_example({"instruction": q, "input": "", "output": resp.choices[0].message.content[:300] + "..."})
+
+        elif type_name == "structured":
+            schema = seeds.STRUCTURED_SCHEMAS[0]
+            print(f"  Schema: {schema['name']}")
+            print(f"  Instruction: {schema['instruction']}")
+            print(f"  Example input:  {schema['examples'][0]['input']}")
+            print(f"  Example output: {schema['examples'][0]['output']}\n")
+
+        elif type_name == "refusals":
+            print(f"  First seed refusal:")
+            self._print_example(seeds.REFUSAL_EXAMPLES[0])
+
+    def _print_example(ex: dict):
+        print(f"  instruction: {ex['instruction']}")
+        if ex.get("input"):
+            print(f"  input:       {ex['input'][:80]}")
+        print(f"  output:      {ex['output'][:200]}...")
+        print()
+
+
 
 # ════════════════════════════════════════════════════════════════════════
 #  GENERATOR 7 — GITLAB MINING
@@ -480,7 +483,7 @@ def _print_example(ex: dict):
 #  IMPORTANT: review data/generated/gitlab.json before merging.
 # ════════════════════════════════════════════════════════════════════════
 
-def mine_gitlab(max_issues: int = 100, max_mrs: int = 50,
+def mine_gitlab(fine_tune: FineTuning,max_issues: int = 100, max_mrs: int = 50,
                 min_output_length: int = 100) -> list[dict]:
     """
     Mine real training examples from GitLab issues and MRs.
@@ -557,7 +560,8 @@ def mine_gitlab(max_issues: int = 100, max_mrs: int = 50,
     print(f"    Total: {len(examples)} GitLab examples")
     print(f"  Review data/generated/gitlab.json before merging.")
 
-    save_batch(examples, "gitlab")
+
+    fine_tune.save_batch(examples, "gitlab")
     return examples
 
 
@@ -595,55 +599,57 @@ if __name__ == "__main__":
     needs_llm = any([args.all, args.tone, args.distillation, args.structured,
                      args.reasoning, args.refusals, args.synthetic,
                      args.preview])
+
+    fine_tune = FineTuning()
    
     #if at least one is true init backend (only for openai/llama/vllm case)
     if needs_llm:
-        init_backend(args.backend)
+        fine_tune.init_backend(args.backend)
 
     if args.preview:
-        preview(args.preview)
+        fine_tune.preview(args.preview)
 
     elif args.stats:
-        stats()
+        fine_tune.stats()
 
     elif args.merge:
-        merge()
+        fine_tune.merge()
 
     else:
         ran_something = False
 
         if args.all or args.tone:
-            generate_tone(count=args.tone_count)
+            fine_tune.generate_tone(count=args.tone_count)
             ran_something = True
 
         if args.all or args.distillation:
-            generate_distillation()
+            fine_tune.generate_distillation()
             ran_something = True
 
         if args.all or args.structured:
-            generate_structured(count_per_schema=args.structured_count)
+            fine_tune.generate_structured(count_per_schema=args.structured_count)
             ran_something = True
 
         if args.all or args.reasoning:
-            generate_reasoning(count=args.reasoning_count)
+            fine_tune.generate_reasoning(count=args.reasoning_count)
             ran_something = True
 
         if args.all or args.refusals:
-            generate_refusals(count=args.refusal_count)
+            fine_tune.generate_refusals(count=args.refusal_count)
             ran_something = True
 
         if args.all or args.synthetic:
-            generate_synthetic(count_per_topic=args.synthetic_per_topic)
+            fine_tune.generate_synthetic(count_per_topic=args.synthetic_per_topic)
             ran_something = True
 
         if args.all or args.gitlab:
-            mine_gitlab(max_issues=args.gitlab_max_issues,
+            mine_gitlab(fine_tune,max_issues=args.gitlab_max_issues,
                         max_mrs=args.gitlab_max_mrs)
             ran_something = True
 
         if ran_something:
             print("\n  All done. Run --merge to combine into training_examples.json")
-            stats()
+            fine_tune.stats()
 
         if not ran_something:
             parser.print_help()
