@@ -84,7 +84,7 @@ FINAL_OUTPUT = "data/training_examples.json"
 os.makedirs(OUTPUT_DIR, exist_ok=True)
 os.makedirs("data", exist_ok=True)
 
-class Fine_tuning
+class FineTuning
 
     def __init__(self,backend:str)
 
@@ -138,6 +138,7 @@ class Fine_tuning
         examples_text = json.dumps(seed_samples, indent=2) #get TOME_EXAMPLES in seeds.py file formatted and readable (indent=2)
 
         #construct prompt
+        # format is for string templates with placeholders
         prompt = prompts_init.format(
             context=seeds.COMPANY_CONTEXT,
             examples=examples_text,
@@ -148,7 +149,7 @@ class Fine_tuning
             #temp 0.8 says be creative and various
         raw      = call_gpt4o(prompt, temperature=temperature)
 
-        #parse_list converts raw text in objects
+        #parse_list converts raw text in objects (json string to json object)
         #validate each object to have the required structure
         examples = validate(parse_list(raw))
 
@@ -190,22 +191,16 @@ class Fine_tuning
 
             # Distillation uses plain text response (not JSON format)
             # call standard py method to ask a question and receive an answer
-            resp = client.chat.completions.create(
-                model=active_model,
-                messages=[
-                    {"role": "system", 
-                    "content":   f"You are a senior backend engineer.\n{seeds.COMPANY_CONTEXT}"},
-                    {"role": "user", "content": question}
-                ],
-                temperature=0.3,
-            )
-            answer = resp.choices[0].message.content.strip()
+            answer = call_gpt4o(prompt, temperature=0.3)
+
+            #append to list
             examples.append({
                 "instruction": question,
                 "input":       "",
                 "output":      answer,
                 "metadata":    {"source": "distillation_gpt4o", "generated": True}
             })
+
         save_batch(examples, "distillation")
         return examples
 
@@ -214,8 +209,12 @@ class Fine_tuning
         print(f"\n  Generating structured output examples...")
         all_examples = []
 
+        #we don't use json.dumps here like in TONE_EXAMPLES, there we just turned the whole json in a string for the prompt
+        #here each schema is different and iterated inidividually and parts of it are serialized separately
+
         for schema_def in seeds.STRUCTURED_SCHEMAS:
             print(f"  Schema: {schema_def['name']} ({count_per_schema} examples)...")
+
             prompt = prompts.STRUCTURED_EXPAND_PROMPT.format(
                 count=count_per_schema,
                 instruction=schema_def["instruction"],
@@ -318,29 +317,38 @@ def save_batch(examples: list[dict], name: str) -> str:
 
 def call_gpt4o(prompt: str, temperature: float = 0.7,
                json_mode: bool = True) -> str:
+
     """Call whichever backend is active. Falls back gracefully if json_mode unsupported."""
     kwargs = dict(model=active_model,
-                  messages=[{"role": "user", "content": prompt}],
+                  messages=[{"role": "user", "content": prompt},
+                            {"role": "system",   "content":   f"You are a senior backend engineer.\n{seeds.COMPANY_CONTEXT}"}],
                   temperature=temperature)
     if json_mode:
         try:
+             # call standard py method to ask a question and receive an answer
             resp = client.chat.completions.create(
                 **kwargs, response_format={"type": "json_object"})
         except Exception:
             resp = client.chat.completions.create(**kwargs)
     else:
         resp = client.chat.completions.create(**kwargs)
-    return resp.choices[0].message.content
+
+    ##exract pure text of the response, stripping spaces 
+    return resp.choices[0].message.content.strip()
+
 
 def parse_list(raw: str) -> list[dict]:
     """Extract a list of dicts from GPT-4o JSON response."""
-    parsed = json.loads(raw)
+
+    parsed = json.loads(raw) # convert json string to object
     if isinstance(parsed, list):
         return parsed
+
     # sometimes wrapped in a key like {"examples": [...]}
     for v in parsed.values():
         if isinstance(v, list):
             return v
+
     return []
 
 def validate(examples: list[dict]) -> list[dict]:
