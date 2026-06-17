@@ -18,6 +18,7 @@ Usage:
   python generate.py --all                        # use openai (default)
   python generate.py --all --backend ollama       # FREE, uses local Ollama
   python generate.py --all --backend vllm         # FREE, uses your vLLM server
+  python generate.py --all --backend openai       # FREE, uses chatgpt api call
   python generate.py --tone                       # expand tone examples only
   python generate.py --distillation               # answer domain questions
   python generate.py --structured                 # structured output examples
@@ -38,13 +39,15 @@ import json
 import os
 import argparse
 from datetime import datetime
+from typing import Final
+
 
 from openai import OpenAI
 from dotenv import load_dotenv
 load_dotenv() # Carica le variabili dal file .env nel sistema
 
 import seeds
-import promts
+import prompts
 
 
 # ════════════════════════════════════════════════════════════════════════
@@ -77,23 +80,23 @@ BACKENDS = {
 
 
 
-class FineTuning
+class FineTuning:
 
-   OUTPUT_DIR: Final   = "data/generated"
-   FINAL_OUTPUT: Final = "data/training_examples.json"
+    OUTPUT_DIR: Final   = "data/generated"
+    FINAL_OUTPUT: Final = "data/training_examples.json"
 
-   # Will be set by --backend flag in main()
-   client       = None
-   active_model = None
+    # Will be set by --backend flag in main()
+    client       = None
+    active_model = None
 
 
-    def __init__(self,backend:str):
+    def __init__(self):
 
         os.makedirs(FineTuning.OUTPUT_DIR, exist_ok=True)
         os.makedirs("data", exist_ok=True)
 
 
-    def init_backend(backend_name: str):
+    def init_backend(self,backend_name: str):
 
         if backend_name not in BACKENDS:
             raise ValueError(f"Unknown backend: {backend_name}. Choose: {list(BACKENDS)}")
@@ -125,7 +128,7 @@ class FineTuning
                 print("     Make sure vLLM is running: python main.py finetune serve")
             raise  #raise the original error so we won't loose it
 
-    def generate(seed_samples: list[dict],
+    def generate(self,seed_samples: list[dict],
                 source: str,
                 prompt_init: str,
                 count:int,
@@ -134,8 +137,8 @@ class FineTuning
 
         '''generic function, takes seed examples, asks the LLM for more like them.
         Used by tone, reasoning, and refusals — all three do the same thing.
-    
-        seed_examples:       the hand-written examples from seeds.py
+
+        seed_samples:       the hand-written examples from seeds.py
         count:               how many new examples to generate
         extra_instructions:  any extra guidance for this specific type'''
 
@@ -144,7 +147,7 @@ class FineTuning
 
         #construct prompt
         # format is for string templates with placeholders
-        prompt = prompts_init.format(
+        prompt = prompt_init.format(
             context=seeds.COMPANY_CONTEXT,
             examples=examples_text,
             count=count,
@@ -178,7 +181,7 @@ class FineTuning
 
     def generate_tone(self,count: int = 50) -> list[dict]:
         return self.generate(
-                        seed_examples=seeds.TONE_EXAMPLES,
+                        seed_samples=seeds.TONE_EXAMPLES,
                         source="tone",
                         prompt_init=prompts.TONE_EXPAND_PROMPT,
                         count=count
@@ -259,7 +262,7 @@ class FineTuning
 
     def generate_reasoning(self,count: int = 20) -> list[dict]:
         return self.generate(
-                        seed_examples=seeds.REASONING_EXAMPLES,
+                        seed_samples=seeds.REASONING_EXAMPLES,
                         source="reasoning",
                         prompt_init=prompts.REASONING_EXPAND_PROMPT,
                         count=count
@@ -267,7 +270,7 @@ class FineTuning
 
     def generate_refusals(self,count: int = 20) -> list[dict]:
         return self.generate(
-                        seed_examples=seeds.REFUSAL_EXAMPLES,
+                        seed_samples=seeds.REFUSAL_EXAMPLES,
                         source="refusal",
                         prompt_init=prompts.REFUSAL_EXPAND_PROMPT,
                         count=count
