@@ -9,6 +9,7 @@ class GitlabLoader:
     def __init__(self,
                 branch: str = "master",
                 extensions: list = None,
+                include_files: bool = True,
                 include_issues: bool = True,
                 include_mrs: bool = True,
                 include_wiki: bool = True):
@@ -25,6 +26,7 @@ class GitlabLoader:
 
         self.branch = branch
         self.extensions = extensions
+        self.include_files = include_files
         self.include_issues = include_issues
         self.include_mrs = include_mrs
         self.include_wiki = include_wiki
@@ -41,7 +43,8 @@ class GitlabLoader:
        
         self.docs = []
 
-        self.load_files()
+        if self.include_files:
+            self.load_files()
 
         if self.include_issues:
             self.load_issues()
@@ -109,7 +112,7 @@ class GitlabLoader:
         IGNORE_SUBFOLDERS = ["src/libs", "public/libs","onboard"]
 
         # ── Files ─────────────────────────────────────────────────────────────────
-        items = self.project.repository_tree(recursive=True, per_page=2000,
+        items = self.project.repository_tree(recursive=True, per_page=1000,
                                                 ref=self.branch, get_all=False)
         loaded = 0
         for item in items:
@@ -152,15 +155,17 @@ class GitlabLoader:
                                 "char_count":len(content)},
                 })
                 loaded += 1
+                print(f" {loaded} file loaded", flush=True)
             except Exception:
                 continue
-        print(f"  Files: {loaded}")
+        print(f"  Files total: {loaded}", flush=True)
 
     def load_issues(self)->list[dict]:
 
         count = 0
-        for issue in self.project.issues.list(state="closed", per_page=2, get_all=False):
-            print(f" Analyze issue {issue.title}") 
+        for issue in self.project.issues.list(state="closed", per_page=100, get_all=False,order_by="created_at", sort="desc"):
+             #even if we said take 1000, gitlab for python has a limit of 100, to go beyond that use get all true or an iterator
+            print(f" Analyze issue {issue.title}",flush=True) 
             notes     = issue.notes.list(get_all=True)
             user_notes = [n for n in notes if not n.system]
             lines = [f"ISSUE #{issue.iid}: {issue.title}",
@@ -177,14 +182,15 @@ class GitlabLoader:
                                        "title":issue.title,"state":issue.state,
                                        "url":issue.web_url,"char_count":len(text)}})
             count += 1
-        print(f"  Issues: {count}")
+        print(f"  Issues: {count}",flush=True)
 
     def load_mergereq(self)->list[dict]:
    
         count = 0
         #state all/merged
-        for mr in self.project.mergerequests.list(state="merged", per_page=2, get_all=False):
-            print(f"Analyze merge request {mr.title}")
+        for mr in self.project.mergerequests.list(state="merged", per_page=100, get_all=False):
+             #even if we said take 1000, gitlab for python has a limit of 100, to go beyond that use get all true or an iterator
+            print(f"Analyze merge request {mr.title}",flush=True)
             notes     = mr.notes.list(get_all=True)
             user_notes = [n for n in notes if not n.system]
             lines = [f"MR !{mr.iid}: {mr.title}",
@@ -201,13 +207,15 @@ class GitlabLoader:
                                         "title":mr.title,"url":mr.web_url,
                                         "char_count":len(text)}})
             count += 1
-        print(f"  MRs: {count}")
+        print(f"  MRs: {count}",flush=True)
 
     def load_wiki(self)->list[dict]:
    
         count = 0
         try:
-            for page in self.project.wikis.list(get_all=False, per_page=3):
+            for page in self.project.wikis.list(get_all=False, per_page=100):
+                #even if we said take 1000, gitlab for python has a limit of 100, to go beyond that use get all true or an iterator
+                print(f"Analyze wiki {page.title}",flush=True)
                 full    = self.project.wikis.get(page.slug)
                 content = (full.content or "").strip()
                 if content:
@@ -218,7 +226,7 @@ class GitlabLoader:
                                                "char_count":len(content)}})
                     count += 1
         except Exception as e:
-            print(f"  Wiki: unavailable ({e})")
-        print(f"  Wiki pages: {count}")
+            print(f"  Wiki: unavailable ({e})",flush=True)
+        print(f"  Wiki pages: {count}",flush=True)
 
 

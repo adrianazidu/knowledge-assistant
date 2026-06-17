@@ -52,6 +52,7 @@ def run(sources: list[str],
         reset: bool = False,
         gitlab_branch: str = "master",
         gitlab_extensions: list = None,
+        include_files: bool = True,
         include_issues: bool = True,
         include_mrs: bool = True,
         include_wiki: bool = True):
@@ -77,34 +78,38 @@ def run(sources: list[str],
         print("  Loading from GitLab...")
         gitlab_loader = GitlabLoader(branch=gitlab_branch,
                                     extensions=gitlab_extensions,
+                                    include_files=include_files,
                                     include_issues=include_issues,
                                     include_mrs=include_mrs,
                                     include_wiki=include_wiki,)
         docs += gitlab_loader.load()
+
     if not docs:
         print("  No documents found."); return
     print(f"  Total documents: {len(docs)}")
 
     # Step 2: Chunk
-    print("\n── Step 2: Chunk ───────────────────────")
+    print("\n── Step 2: Chunk ───────────────────────",flush=True)
     chunks = []
     for doc in docs:
         chunks.extend(chunker.chunk(doc))
-    print(f"  Total chunks: {len(chunks)}")
+    print(f"  Total chunks: {len(chunks)}",flush=True)
 
     # Step 3: Embed
-    print("\n── Step 3: Embed ───────────────────────")
+    print("\n── Step 3: Embed ───────────────────────",flush=True)
     chunks = embedder.embed_chunks(chunks)
+    print(f"finished embedding",flush=True)
 
     # Step 4: Save
-    print("\n── Step 4: Save ────────────────────────")
+    print("\n── Step 4: Save ────────────────────────",flush=True)
     if chunks:
         vector_store.save(chunks)
+        print(f"finished saving",flush=True)
     else:
         print("Nothing new to save")
 
     s = vector_store.stats()
-    print(f"\n✅ Done in {time.time()-t0:.1f}s — {s['total']} chunks in store")
+    print(f"\n✅ Done in {time.time()-t0:.1f}s — {s['total']} chunks in store",flush=True)
     for t, n in s.get("by_type", {}).items():
         print(f"   {t:<20} {n}")
 
@@ -117,6 +122,7 @@ if __name__ == "__main__":
     parser.add_argument("--branch",      default="master")
     parser.add_argument("--extensions",  nargs="+", default=None)
     parser.add_argument("--no-issues",   action="store_true")
+    parser.add_argument("--no-files",    action="store_true")
     parser.add_argument("--no-mrs",      action="store_true")
     parser.add_argument("--no-wiki",     action="store_true")
     parser.add_argument("--stats",       action="store_true")
@@ -132,19 +138,12 @@ if __name__ == "__main__":
                 reset=a.reset,
                 gitlab_branch=a.branch,
                 gitlab_extensions=a.extensions, 
+                include_files=not a.no_files,
                 include_issues=not a.no_issues,
                 include_mrs=not a.no_mrs,
                 include_wiki=not a.no_wiki)
-            print(f"INGESTION_STATUS: SUCCESS")
+            print(f"INGESTION_STATUS: SUCCESS",flush=True)
         except Exception as e:
-            print(f"INGESTION_STATUS: FAILED after {time.time()-main_t0:.1f}s — {e}")
+            print(f"INGESTION_STATUS: FAILED after {time.time()-main_t0:.1f}s — {e}",flush=True)
             raise
 
-"""launch in bg with
-Start-Process -NoNewWindow -RedirectStandardOutput "ingest_log.txt" -RedirectStandardError "ingest_error_log.txt" python -ArgumentList "-m", "ingestion.ingest", "--source", "local"
-or
-start /B python -m ingestion.ingest --source local > ingest_log.txt 2>&1
-and monitor the file log
-powershell Get-Content ingest_log.txt -Wait -Tail 20
-windows equivalent of tail -f
-"""

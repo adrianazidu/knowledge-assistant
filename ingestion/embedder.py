@@ -32,7 +32,7 @@ def get_existing_ids() -> set:
     # ChromaDB
     t = time.time()
     ids = vector_store.get_all_ids()
-    print(f"  [TIMING] get_existing_ids: {time.time()-t0:.2f}s for {len(ids)} existing IDs")
+    print(f"  [TIMING] get_existing_ids: {time.time()-t0:.2f}s for {len(ids)} existing IDs",flush=True)
     
     return set(result["ids"])
 
@@ -51,8 +51,8 @@ def embed_chunks_incremental_old(chunks: list[dict]) -> list[dict]:
         else:
             new_chunks.append(chunk)
 
-    print(f"  Skipping {skipped} unchanged chunks")
-    print(f"  Embedding {len(new_chunks)} new chunks")
+    print(f"  Skipping {skipped} unchanged chunks",flush=True)
+    print(f"  Embedding {len(new_chunks)} new chunks",flush=True)
 
     #if all the chinks hash already exist oin database return empty 
     if not new_chunks:
@@ -94,14 +94,14 @@ def embed_chunks(chunks: list[dict], batch_size: int = 100) -> list[dict]:
 
     client, model = config.get_embed_client()
     total = len(chunks)
-    print(f"  Backend: {config.EMBEDDING_BACKEND} ({model})")
+    print(f"  Backend: {config.EMBEDDING_BACKEND} ({model})",flush=True)
 
     for start in range(0, total, batch_size):
         batch  = chunks[start:start + batch_size]
         resp   = client.embeddings.create(input=[c["text"] for c in batch], model=model)
         for i, chunk in enumerate(batch):
             chunk["embedding"] = resp.data[i].embedding
-        print(f"  Embedded {min(start+batch_size, total)}/{total}", end="\r")
+        print(f"  Embedded {min(start+batch_size, total)}/{total}", end="\r",flush=True)
         if config.EMBEDDING_BACKEND == "openai" and start + batch_size < total:
             time.sleep(0.1)
     print()

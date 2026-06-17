@@ -90,19 +90,31 @@ def _chroma_save(chunks: list[dict]):
         print("no chunks to save")
         return
     col = _chroma_col()
-    col.upsert(
-        ids        = [f"{c['source']}::chunk_{c['chunk_index']}" for c in chunks],
-        embeddings = [c["embedding"] for c in chunks],
-        documents  = [c["text"] for c in chunks],
-        metadatas  = [{
-            "source":         c["source"],
-            "chunk_index":    c["chunk_index"],
-            "type":           c["metadata"].get("type", "document"),
-            "chunk_strategy": c["metadata"].get("chunk_strategy", ""),
-            "chunk_size":     c["metadata"].get("chunk_size", 0),
-            "content_hash":   c["metadata"].get("content_hash", ""),
-        } for c in chunks],
-    )
+
+    #max insert documents number for chroma db 5461
+    BATCH_SIZE = 2000
+
+    len_chunks = len(chunks)
+
+    for i in range(0, len_chunks,BATCH_SIZE):
+
+        batch_chunks = chunks[i: i+ BATCH_SIZE]
+
+        print(f" save batch {i} out of {len_chunks}",flush=True)
+
+        col.upsert(
+            ids        = [f"{c['source']}::chunk_{c['chunk_index']}" for c in batch_chunks],
+            embeddings = [c["embedding"] for c in batch_chunks],
+            documents  = [c["text"] for c in batch_chunks],
+            metadatas  = [{
+                "source":         c["source"],
+                "chunk_index":    c["chunk_index"],
+                "type":           c["metadata"].get("type", "document"),
+                "chunk_strategy": c["metadata"].get("chunk_strategy", ""),
+                "chunk_size":     c["metadata"].get("chunk_size", 0),
+                "content_hash":   c["metadata"].get("content_hash", ""),
+            } for c in batch_chunks],
+        )
     print(f"  [chroma] Saved {len(chunks)} chunks → total: {col.count()}")
 
 def _chroma_query(embedding, top_k, type_filter):

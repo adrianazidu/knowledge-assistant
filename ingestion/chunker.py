@@ -1,5 +1,5 @@
 """ingestion/chunker.py — splits documents into chunks."""
-import re
+import re   #regular expressions
 import config
 
 def chunk(doc: dict) -> list[dict]:
@@ -14,7 +14,7 @@ def chunk(doc: dict) -> list[dict]:
             return chunks
 
     # Short issues/MRs: keep whole
-    if doc_type in ("issue", "merge_request") and len(doc["text"]) < config.CHUNK_SIZE * 2:
+    if doc_type in ("issue", "merge_request","wiki") and len(doc["text"]) < config.CHUNK_SIZE * 2:
         return [_make_chunk(doc, doc["text"], 0, "whole")]
 
     # Default: recursive
@@ -23,16 +23,26 @@ def chunk(doc: dict) -> list[dict]:
 
 def _chunk_code(doc: dict) -> list[dict]:
     ext     = doc["metadata"].get("extension", "")
+
+    #in one command construct patterns to chunk files - divide by new line character followed by certain words
+    #and extract with get the pattern for my extension get(ext)
     pattern = {
         ".py": r'\n(?=(?:def |class |async def ))',
         ".ts": r'\n(?=(?:function |class |const |export |async function ))',
         ".js": r'\n(?=(?:function |class |const |export |async function ))',
     }.get(ext)
+   
     if not pattern:
         return []
+    
+    #split doc in parts using pattern (re is the library for regular expressions)
+    #if no pattern was involved, just .split( would have done the job
     parts  = [p.strip() for p in re.split(pattern, doc["text"]) if p.strip()]
+
     result = []
     for i, part in enumerate(parts):
+
+        #check if len of part is twice the chunk size, if so create a new temporary dictionary sub copying original document (doc) 
         if len(part) > config.CHUNK_SIZE * 2:
             sub = {**doc, "text": part}
             result.extend(_chunk_recursive(sub))
