@@ -165,8 +165,8 @@ def _pg_ensure_table(conn, dim: int):
         cur.execute("""
             CREATE INDEX IF NOT EXISTS embeddings_cosine_idx
             ON embeddings
-            USING ivfflat (embedding vector_cosine_ops)
-            WITH (lists = 100);
+            USING hnsw (embedding vector_cosine_ops)
+            WITH (m = 16, ef_construction = 64);
         """)
     conn.commit()
 
@@ -234,6 +234,7 @@ def _pg_query(embedding: list[float], top_k: int,
         params = [embedding, embedding, top_k]
 
     with conn.cursor() as cur:
+        cur.execute("SET hnsw.ef_search = 100;")
         cur.execute(sql, params)
         rows = cur.fetchall()
     conn.close()
