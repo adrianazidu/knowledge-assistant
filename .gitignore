@@ -1,0 +1,7 @@
+venv/*
+__pycache__/
+*.pyc
+info.txt
+info-gitlab.txt
+url-to-get-info-gitlab.txt
+.env
