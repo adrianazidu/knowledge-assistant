@@ -30,6 +30,30 @@ The public API is identical for both backends:
 Switch backends by changing VECTOR_STORE in .env.
 ⚠️  If you switch backends, re-run ingestion from scratch —
     the two stores are independent and don't share data.
+
+
+HNSW optimization guide 
+hnsw:M (default 16)
+  - Controls graph connectivity. Higher M = better recall + more memory.
+  - 16  → fast build, lower recall,  ~1.1 × base memory
+  - 32  → balanced (recommended for most RAG)
+  - 64  → high recall,  slower build, ~2 × base memory
+
+hnsw:construction_ef (default 100)
+  - Candidate pool size during index build. Higher = better graph quality.
+  - 100 → fast ingestion
+  - 200 → better recall at query time (recommended)
+  - 400 → high quality, slow ingestion
+
+ef_search (query time, default = n_results)
+  - Candidate pool during search. Must be >= n_results.
+  - Set to 50–200 depending on recall requirements.
+  - At 10 results: ef_search=50 is fast, ef_search=200 is thorough.
+
+Recall vs speed curve (approximate):
+  M=16, ef_search=50   → ~92% recall, very fast
+  M=32, ef_search=100  → ~97% recall, fast       ← typical production
+  M=64, ef_search=200  → ~99% recall, moderate
 """
 import config
 

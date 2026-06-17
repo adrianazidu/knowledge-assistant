@@ -42,8 +42,31 @@ def _chunk_code(doc: dict) -> list[dict]:
 
 
 def _chunk_recursive(doc: dict) -> list[dict]:
+
+    #split the text using these as separators in order of priority
     texts  = _split(doc["text"], ["\n\n", "\n", ". ", " "])
-    return [_make_chunk(doc, t, i, "recursive") for i, t in enumerate(texts) if t.strip()]
+
+    """A long wiki page or PDF manual small chunk of 500 would not be releavnt without the greater context (the parent text)
+    -- add the parent text as metdata for the chunk"""
+
+ # coarse parent split — only matters for long docs
+    if len(doc["text"]) > config.CHUNK_SIZE * 4:
+        parent_texts = _split(doc["text"], ["\n\n"])  # paragraph-level only
+    else:
+        parent_texts = [doc["text"]]  # whole doc is its own parent
+
+    chunks = []
+    for i, t in enumerate(child_texts):
+
+        #check text not empty after cleaning white space
+        if not t.strip():
+            continue
+            
+        parent_idx = min(i * len(parent_texts) // max(len(child_texts), 1), len(parent_texts) - 1)
+        c = _make_chunk(doc, t, i, "recursive")
+        c["metadata"]["parent_text"] = parent_texts[parent_idx]
+        chunks.append(c)
+    return chunks
 
 
 def _split(text: str, seps: list[str]) -> list[str]:
