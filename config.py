@@ -192,7 +192,7 @@ def get_embed_client():
     from openai import OpenAI
     if EMBEDDING_BACKEND == "openai":
         return OpenAI(api_key=OPENAI_API_KEY), OPENAI_EMBED_MODEL
-    elif EMBEDDING_BACKEND == "local":
+    elif EMBEDDING_BACKEND == "ollama":
         return OpenAI(base_url=LOCAL_EMBED_URL, api_key="x"), LOCAL_EMBED_MODEL
     elif EMBEDDING_BACKEND == "vllm":
         return OpenAI(base_url=VLLM_EMBED_URL, api_key="x"), VLLM_EMBED_MODEL

@@ -40,7 +40,8 @@ import argparse, time, sys, os
 #modify search modules path to parent folder of this one, 0 means max priority for this specific folder
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from ingestion.loaders import local_loader, gitlab_loader
+from ingestion.loaders import local_loader  #import file from folder
+from ingestion.loaders.gitlab_loader import GitlabLoader #import class inside file from folder
 from ingestion import chunker, embedder, vector_store
 
 from dotenv import load_dotenv
@@ -48,7 +49,7 @@ load_dotenv() # Carica le variabili dal file .env nel sistema
 
 def run(sources: list[str],
         reset: bool = False,
-        gitlab_branch: str = "main",
+        gitlab_branch: str = "master",
         gitlab_extensions: list = None,
         include_issues: bool = True,
         include_mrs: bool = True,
@@ -73,13 +74,12 @@ def run(sources: list[str],
 
     if "gitlab" in sources:
         print("  Loading from GitLab...")
-        docs += gitlab_loader.load(
-            branch=gitlab_branch,
-            extensions=gitlab_extensions,
-            include_issues=include_issues,
-            include_mrs=include_mrs,
-            include_wiki=include_wiki,
-        )
+        gitlab_loader = GitlabLoader(branch=gitlab_branch,
+                                    extensions=gitlab_extensions,
+                                    include_issues=include_issues,
+                                    include_mrs=include_mrs,
+                                    include_wiki=include_wiki,)
+        docs += gitlab_loader.load()
     if not docs:
         print("  No documents found."); return
     print(f"  Total documents: {len(docs)}")
@@ -110,7 +110,7 @@ if __name__ == "__main__":
     parser.add_argument("--source",      nargs="+", default=["local"],
                         choices=["local","gitlab"])
     parser.add_argument("--reset",       action="store_true")
-    parser.add_argument("--branch",      default="main")
+    parser.add_argument("--branch",      default="master")
     parser.add_argument("--extensions",  nargs="+", default=None)
     parser.add_argument("--no-issues",   action="store_true")
     parser.add_argument("--no-mrs",      action="store_true")
@@ -122,6 +122,10 @@ if __name__ == "__main__":
         s = vector_store.stats()
         print(f"\n  Chunks: {s['total']} | Types: {s.get('by_type',{})}\n")
     else:
-        run(sources=a.source, reset=a.reset, gitlab_branch=a.branch,
-            gitlab_extensions=a.extensions, include_issues=not a.no_issues,
-            include_mrs=not a.no_mrs, include_wiki=not a.no_wiki)
+        run(sources=a.source,
+            reset=a.reset,
+            gitlab_branch=a.branch,
+            gitlab_extensions=a.extensions, 
+            include_issues=not a.no_issues,
+            include_mrs=not a.no_mrs,
+            include_wiki=not a.no_wiki)
