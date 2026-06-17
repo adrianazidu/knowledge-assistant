@@ -2,6 +2,7 @@
 import time
 from openai import OpenAI
 import config  # i need the functions inside config.py
+from ingestion import vector_store # connect to vector store
 
 """
 to make sure we do not write same things and to make sure we always have the correct version saved
@@ -29,12 +30,15 @@ or
 def get_existing_ids() -> set:
     """Return all chunk IDs currently in the store."""
     # ChromaDB
-    col    = _chroma_col()
-    result = col.get(include=[])   # fetch IDs only, no content
+    t = time.time()
+    ids = vector_store.get_all_ids()
+    print(f"  [TIMING] get_existing_ids: {time.time()-t0:.2f}s for {len(ids)} existing IDs")
+    
     return set(result["ids"])
 
-def embed_chunks_incremental(chunks: list[dict]) -> list[dict]:
-    """fragile method - If content changes but the ID stays the same, you serve stale data"
+#deprecated - if chunk contents change, and their index not, they will not be updated in the databse
+def embed_chunks_incremental_old(chunks: list[dict]) -> list[dict]:
+    """fragile method - If content changes but the ID stays the same, you serve stale data"""
     existing_ids = get_existing_ids()
 
     new_chunks     = []
@@ -50,9 +54,36 @@ def embed_chunks_incremental(chunks: list[dict]) -> list[dict]:
     print(f"  Skipping {skipped} unchanged chunks")
     print(f"  Embedding {len(new_chunks)} new chunks")
 
+    #if all the chinks hash already exist oin database return empty 
     if not new_chunks:
         return []
 
+    return new_chunks
+
+def embed_chunks_incremental(chunks: list[dict]) -> list[dict]:
+    """function that uses content hash to make sure i update changed chunks"""
+    import hashlib
+    col = vector_store._chroma_col()
+    existing = col.get(include=["metadatas"])
+
+    #save a dictionary of data with key chunk_index_id and value content_hash
+    existing_hashes = vector_store.get_all_hashes()
+
+    new_chunks = []
+    for chunk in chunks:
+
+        #generate an unique id for each
+        chunk_id = f"{chunk['source']}::chunk_{chunk['chunk_index']}"
+
+        #compute unique hash code for every chunk
+        content_hash = hashlib.sha256(chunk["text"].encode()).hexdigest()
+
+        #check content of old chunk with the same id
+        if existing_hashes.get(chunk_id) == content_hash:
+            continue  # unchanged — true skip
+
+        chunk["metadata"]["content_hash"] = content_hash
+        new_chunks.append(chunk)
     return new_chunks
 
 def embed_chunks(chunks: list[dict], batch_size: int = 100) -> list[dict]:

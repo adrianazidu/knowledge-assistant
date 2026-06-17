@@ -12,6 +12,11 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
+#configure to print utf-8 even when printing to files in background
+import sys
+sys.stdout.reconfigure(encoding="utf-8")
+sys.stderr.reconfigure(encoding="utf-8")
+
 # ════════════════════════════════════════════════════════════════════════
 #  SWITCH 1 — CHAT / AGENT MODEL
 #  Controls: inference pipeline, agent, fine-tuning base, vLLM serving

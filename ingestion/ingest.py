@@ -35,6 +35,7 @@ Usage:
   python -m ingestion.ingest --source gitlab --no-issues --no-mrs
   python -m ingestion.ingest --stats
 """
+import config  #make sure i get the encoding configuration first before any print
 import argparse, time, sys, os
 
 #modify search modules path to parent folder of this one, 0 means max priority for this specific folder
@@ -97,7 +98,10 @@ def run(sources: list[str],
 
     # Step 4: Save
     print("\n── Step 4: Save ────────────────────────")
-    vector_store.save(chunks)
+    if chunks:
+        vector_store.save(chunks)
+    else:
+        print("Nothing new to save")
 
     s = vector_store.stats()
     print(f"\n✅ Done in {time.time()-t0:.1f}s — {s['total']} chunks in store")
@@ -122,10 +126,25 @@ if __name__ == "__main__":
         s = vector_store.stats()
         print(f"\n  Chunks: {s['total']} | Types: {s.get('by_type',{})}\n")
     else:
-        run(sources=a.source,
-            reset=a.reset,
-            gitlab_branch=a.branch,
-            gitlab_extensions=a.extensions, 
-            include_issues=not a.no_issues,
-            include_mrs=not a.no_mrs,
-            include_wiki=not a.no_wiki)
+        try:
+            main_t0 = time.time()
+            run(sources=a.source,
+                reset=a.reset,
+                gitlab_branch=a.branch,
+                gitlab_extensions=a.extensions, 
+                include_issues=not a.no_issues,
+                include_mrs=not a.no_mrs,
+                include_wiki=not a.no_wiki)
+            print(f"INGESTION_STATUS: SUCCESS")
+        except Exception as e:
+            print(f"INGESTION_STATUS: FAILED after {time.time()-main_t0:.1f}s — {e}")
+            raise
+
+"""launch in bg with
+Start-Process -NoNewWindow -RedirectStandardOutput "ingest_log.txt" -RedirectStandardError "ingest_error_log.txt" python -ArgumentList "-m", "ingestion.ingest", "--source", "local"
+or
+start /B python -m ingestion.ingest --source local > ingest_log.txt 2>&1
+and monitor the file log
+powershell Get-Content ingest_log.txt -Wait -Tail 20
+windows equivalent of tail -f
+"""

@@ -84,6 +84,11 @@ def _chroma_col():
     )
 
 def _chroma_save(chunks: list[dict]):
+
+    #if no new chunks, do not try to save otherwose will create an error: Expected Embeddings to be non-empty list or numpy array, got [] in upsert
+    if not chunks:
+        print("no chunks to save")
+        return
     col = _chroma_col()
     col.upsert(
         ids        = [f"{c['source']}::chunk_{c['chunk_index']}" for c in chunks],
@@ -95,6 +100,7 @@ def _chroma_save(chunks: list[dict]):
             "type":           c["metadata"].get("type", "document"),
             "chunk_strategy": c["metadata"].get("chunk_strategy", ""),
             "chunk_size":     c["metadata"].get("chunk_size", 0),
+            "content_hash":   c["metadata"].get("content_hash", ""),
         } for c in chunks],
     )
     print(f"  [chroma] Saved {len(chunks)} chunks → total: {col.count()}")
@@ -195,6 +201,9 @@ def _pg_ensure_table(conn, dim: int):
     conn.commit()
 
 def _pg_save(chunks: list[dict]):
+    if not chunks:
+        print("no chunks to save")
+        return
     import json as _json
     conn = _pg_conn()
     dim  = len(chunks[0]["embedding"])
@@ -311,6 +320,38 @@ def save(chunks: list[dict]):
         _pg_save(chunks)
     else:
         _chroma_save(chunks)
+
+def get_all_ids() -> set:
+    """ get all chunk id"""
+    if _backend=="pg_vector":
+        conn = _pg_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT id from embeddings;")
+            ids = {row[0] for row in cur.fetchall()}
+        conn.close()
+        return ids
+    else:
+        col = _chroma_col()
+        result=col.get(include=[])
+        return set(result["ids"])
+
+# in vector_store.py
+def get_all_hashes() -> dict:
+    """Return {chunk_id: content_hash} for everything currently stored."""
+    if _backend() == "pgvector":
+        conn = _pg_conn()
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, metadata->>'content_hash' FROM embeddings;")
+            result = {row[0]: row[1] for row in cur.fetchall()}
+        conn.close()
+        return result
+    else:
+        col = _chroma_col()
+        existing = col.get(include=["metadatas"])
+        return {
+            f"{m['source']}::chunk_{m['chunk_index']}": m.get("content_hash")
+            for m in existing["metadatas"]
+        }
 
 def query(embedding: list[float], top_k: int = None,
           type_filter: str = None) -> list[dict]:

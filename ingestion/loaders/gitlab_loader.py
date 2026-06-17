@@ -102,15 +102,18 @@ class GitlabLoader:
         #define ext if extensions not defined
         exts = self.extensions or [".py",".ts",".js",".go",".java",".md",".php",".css",
                             ".yaml",".yml",".sql",".sh",".txt"]
+
         skip_dirs = {"node_modules",".venv","venv","__pycache__","dist",
-                    "build",".git","vendor","coverage"}
+                    "build",".git","vendor","coverage","updates","tests","css","fonts"}
    
+        IGNORE_SUBFOLDERS = ["src/libs", "public/libs","onboard"]
+
         # ── Files ─────────────────────────────────────────────────────────────────
-        items = self.project.repository_tree(recursive=True, per_page=1000,
+        items = self.project.repository_tree(recursive=True, per_page=2000,
                                                 ref=self.branch, get_all=False)
         loaded = 0
         for item in items:
-            print(f" analyze item {item['path']}" )
+            print(f" analyze item {item['path']}", flush=True )
 
             if item["type"] != "blob":
                 continue
@@ -121,10 +124,16 @@ class GitlabLoader:
             #ignore the ones in skip dirs
             #if at least one (ANY) of the parent dirs of the file is in skipped list
             if any(d in skip_dirs for d in parts[:-1]):
+                print("path present in skip dirs, ignoring..", flush=True)
                 continue
 
+            if any (path.startswith(folder + "/") for folder in IGNORE_SUBFOLDERS):
+                print("path present in ignore subfolders, ignoring...", flush=True)
+                continue
+    
             #ignore the not enabled extensions
             if ext not in exts:
+                print(f"extension {ext} not considered, ignoring..", flush=True)
                 continue
             try:
                 f       = self.project.files.get(file_path=path, ref=self.branch)
@@ -150,7 +159,8 @@ class GitlabLoader:
     def load_issues(self)->list[dict]:
 
         count = 0
-        for issue in self.project.issues.list(state="closed", per_page=10, get_all=False):
+        for issue in self.project.issues.list(state="closed", per_page=2, get_all=False):
+            print(f" Analyze issue {issue.title}") 
             notes     = issue.notes.list(get_all=True)
             user_notes = [n for n in notes if not n.system]
             lines = [f"ISSUE #{issue.iid}: {issue.title}",
@@ -173,7 +183,8 @@ class GitlabLoader:
    
         count = 0
         #state all/merged
-        for mr in self.project.mergerequests.list(state="merged", per_page=10, get_all=False):
+        for mr in self.project.mergerequests.list(state="merged", per_page=2, get_all=False):
+            print(f"Analyze merge request {mr.title}")
             notes     = mr.notes.list(get_all=True)
             user_notes = [n for n in notes if not n.system]
             lines = [f"MR !{mr.iid}: {mr.title}",
