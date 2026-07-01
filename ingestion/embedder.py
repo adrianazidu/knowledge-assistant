@@ -27,14 +27,13 @@ or
  project.issues.list(updated_after="2025-01-01T00:00:00Z")
 """
 
+
 def get_existing_ids() -> set:
     """Return all chunk IDs currently in the store."""
-    # ChromaDB
-    t = time.time()
+    t0  = time.time()
     ids = vector_store.get_all_ids()
-    print(f"  [TIMING] get_existing_ids: {time.time()-t0:.2f}s for {len(ids)} existing IDs",flush=True)
-    
-    return set(result["ids"])
+    print(f"  [TIMING] get_existing_ids: {time.time()-t0:.2f}s for {len(ids)} IDs")
+    return ids
 
 #deprecated - if chunk contents change, and their index not, they will not be updated in the databse
 def embed_chunks_incremental_old(chunks: list[dict]) -> list[dict]:
@@ -48,8 +47,10 @@ def embed_chunks_incremental_old(chunks: list[dict]) -> list[dict]:
         chunk_id = f"{chunk['source']}::chunk_{chunk['chunk_index']}"
         if chunk_id in existing_ids:
             skipped += 1
+            print("chunk present - SKIP",flush=True)
         else:
             new_chunks.append(chunk)
+            print("chunk not present - ADD",flush=True)
 
     print(f"  Skipping {skipped} unchanged chunks",flush=True)
     print(f"  Embedding {len(new_chunks)} new chunks",flush=True)
@@ -80,7 +81,10 @@ def embed_chunks_incremental(chunks: list[dict]) -> list[dict]:
 
         #check content of old chunk with the same id
         if existing_hashes.get(chunk_id) == content_hash:
+            #print("chunk present - SKIP",flush=True)
             continue  # unchanged — true skip
+
+        #print("chunk not present - ADD",flush=True)
 
         chunk["metadata"]["content_hash"] = content_hash
         new_chunks.append(chunk)
