@@ -46,9 +46,13 @@ from openai import OpenAI
 from dotenv import load_dotenv
 load_dotenv() # Carica le variabili dal file .env nel sistema
 
-import seeds
-import prompts
+#these commands are right only if you call the file from inside the folder : #py generate.py --backend ollama --tone
+# so they wont' work if i try to call it like a module py -m generate_synthetic_data.generate --backend ollama --tone
+#import seeds
+#import prompts
 
+from generate_synthetic_data import seeds
+from generate_synthetic_data import prompts
 
 # ════════════════════════════════════════════════════════════════════════
 #  BACKEND SETUP
@@ -66,7 +70,7 @@ BACKENDS = {
     "ollama": {
         "base_url":   "http://localhost:11434/v1",
         "api_key":    "ollama",                      # required but ignored by Ollama
-        "model":      os.getenv("OLLAMA_MODEL","llama3.1"),
+        "model":      os.getenv("OLLAMA_MODEL","qwen2.5:3b"),
         "note":       "Local Ollama — FREE. Install: https://ollama.com then: ollama pull llama3.1",
     },
     "vllm": {
@@ -146,7 +150,7 @@ class FineTuning:
         examples_text = json.dumps(seed_samples, indent=2) #get TOME_EXAMPLES in seeds.py file formatted and readable (indent=2)
 
         #construct prompt
-        # format is for string templates with placeholders
+        # format is for string templates with placeholders, replaces {placeholders} inside the string with the values you pass
         prompt = prompt_init.format(
             context=seeds.COMPANY_CONTEXT,
             examples=examples_text,
@@ -156,10 +160,16 @@ class FineTuning:
 
             #temp 0.8 says be creative and various
         raw      = self.call_gpt4o(prompt, temperature=temperature)
+        print("parsed list")
+        print(self.parse_list(raw))
+        print(len(self.parse_list(raw)))
 
         #parse_list converts raw text in objects (json string to json object)
         #validate each object to have the required structure
         examples = self.validate(self.parse_list(raw))
+
+        print("validated list")
+        print(examples)
 
         #add metadata
         for ex in examples:
@@ -333,31 +343,67 @@ class FineTuning:
                     temperature=temperature)
         if json_mode:
             try:
+                chunks_extracted = []
                 # call standard py method to ask a question and receive an answer
-                resp = self.client.chat.completions.create(
-                    **kwargs, response_format={"type": "json_object"})
-            except Exception:
+                stream = self.client.chat.completions.create(
+                    **kwargs, response_format={"type": "json_object"},stream=True)
+               
+                for chunk in stream:
+                    if chunk.choices and chunk.choices[0].delta.content:
+                        content = chunk.choices[0].delta.content
+                        print(content,end="",flush=True)
+                        chunks_extracted.append(chunk)
+                print() #go to next line
+
+                return "".join(chunks_extracted).strip()
+
+            except Exception as e:
+                print(f"JSON mode failed or unsupported: {e}. Falling back to stream false.")
                 resp = self.client.chat.completions.create(**kwargs)
         else:
             resp = self.client.chat.completions.create(**kwargs)
+            print("regular call, no JSON")
 
-        ##exract pure text of the response, stripping spaces 
+        ##fallback to except or else
         return resp.choices[0].message.content.strip()
 
 
-    def parse_list(self,raw: str) -> list[dict]:
-        """Extract a list of dicts from GPT-4o JSON response."""
+    def parse_list(self, raw: str) -> list[dict]:
+        import re
+        # first try normal JSON parsing
+        try:
+            parsed = json.loads(raw)
+            if isinstance(parsed, list):
+                return parsed
+            for v in parsed.values():
+                if isinstance(v, list):
+                    return v
+            # single valid object
+            if "instruction" in parsed and "output" in parsed:
+                return [parsed]
+        except json.JSONDecodeError:
+            pass
 
-        parsed = json.loads(raw) # convert json string to object
-        if isinstance(parsed, list):
-            return parsed
+        # fallback — extract instruction/input/output blocks from raw string
+        # finds all values for each key using regex on the original string
+        instructions = re.findall(r'"instruction"\s*:\s*"((?:[^"\\]|\\.)*)"', raw)
+        inputs       = re.findall(r'"input"\s*:\s*"((?:[^"\\]|\\.)*)"', raw)
+        outputs      = re.findall(r'"output"\s*:\s*"((?:[^"\\]|\\.)*)"', raw)
 
-        # sometimes wrapped in a key like {"examples": [...]}
-        for v in parsed.values():
-            if isinstance(v, list):
-                return v
+        if not instructions or not outputs:
+            return []
 
-        return []
+        # zip them together — pad inputs with empty string if missing
+        inputs = inputs or [""] * len(instructions)
+        results = []
+        for i in range(min(len(instructions), len(outputs))):
+            results.append({
+                "instruction": instructions[i],
+                "input":       inputs[i] if i < len(inputs) else "",
+                "output":      outputs[i],
+            })
+
+        return results
 
     def validate(self,examples: list[dict]) -> list[dict]:
         """Keep only examples that have instruction and output."""
@@ -436,7 +482,7 @@ class FineTuning:
 
         
         if type_name == "tone":
-            result = self.generate_tone(count=2)
+            result = self.generate_tone(count=50)
             for ex in result[:2]:
                 self._print_example(ex)
 
