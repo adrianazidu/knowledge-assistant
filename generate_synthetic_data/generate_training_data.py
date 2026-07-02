@@ -1,4 +1,5 @@
 """
+deprecated file - to delete
 generate_training_data.py old version, replaced by seed.py and generate.py
 --------------------------
 Generates training examples for fine-tuning from three sources:

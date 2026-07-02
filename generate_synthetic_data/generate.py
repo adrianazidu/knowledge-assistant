@@ -445,9 +445,9 @@ class FineTuning:
 
         print(f"\n  ── Merged training dataset ─────────────────────")
         for src, count in sources.items():
-            print(f"  {src:<35} {count:>4} examples")
-        print(f"  {'─'*42}")
-        print(f"  {'TOTAL':<35} {len(all_examples):>4} examples")
+            print(f"  {src:<35} {count:>4} examples")              #align texts to left and roght
+        print(f"  {'─'*42}")                                       #repeat that character exactly 42 times 
+        print(f"  {'TOTAL':<35} {len(all_examples):>4} examples")  #print total then 35 spaces, assign 4 characters for the len space 
         print(f"\n  Output → {FineTuning.FINAL_OUTPUT}")
         print(f"  Ready for: python main.py finetune prep\n")
         return all_examples
