@@ -206,11 +206,13 @@ class FineTuning:
 
         #domain questions is an array not a json
         for i, question in enumerate(seeds.DOMAIN_QUESTIONS, 1):
-            print(f"  [{i}/{len(seeds.DOMAIN_QUESTIONS)}] {question[:65]}...")
+            print(f"  [{i}/{len(seeds.DOMAIN_QUESTIONS)}] {question[:65]}...",flush=True)
 
             # Distillation uses plain text response (not JSON format)
             # call standard py method to ask a question and receive an answer
-            answer = self.call_gpt4o(prompt, temperature=0.3)
+            answer = self.call_gpt4o(question, temperature=0.3)
+
+            print(f"  [{i}/{len(seeds.DOMAIN_QUESTIONS)}] {answer[:65]}...",flush=False)
 
             #append to list
             examples.append({
@@ -341,7 +343,9 @@ class FineTuning:
         kwargs = dict(model=self.active_model,
                     messages=[{"role": "user", "content": prompt},
                                 {"role": "system",   "content":   f"You are a senior backend engineer.\n{seeds.COMPANY_CONTEXT}"}],
-                    temperature=temperature)
+                    temperature=temperature,
+                    max_completion_tokens=2048, # force model to stop after x tokens (qbout 1500 words)
+                    presence_penalty=0.6 )       # punish model for compulsive repetition)
         if json_mode:
             try:
                 chunks_extracted = []
