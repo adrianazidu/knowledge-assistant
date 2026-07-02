@@ -110,7 +110,8 @@ class FineTuning:
         print(f"\n  Backend: {backend_name} — {b['note']}")
 
         #construct kwargs
-        kwargs = {"api_key": b["api_key"]}
+        #timeout None otherwise in big requests won't crahs on only CPU
+        kwargs = {"api_key": b["api_key"],"timeout": None}
         if b["base_url"]:
             kwargs["base_url"] = b["base_url"]
 
@@ -352,7 +353,7 @@ class FineTuning:
                     if chunk.choices and chunk.choices[0].delta.content:
                         content = chunk.choices[0].delta.content
                         print(content,end="",flush=True)
-                        chunks_extracted.append(chunk)
+                        chunks_extracted.append(content)
                 print() #go to next line
 
                 return "".join(chunks_extracted).strip()
