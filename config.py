@@ -33,13 +33,13 @@ OPENAI_CHAT_MODEL = "gpt-4o-mini"
 
 # LLaMA settings (used when MODEL_BACKEND = "llama")
 # After: python main.py finetune serve --model llama
-LLAMA_BASE_MODEL    = "unsloth/Meta-Llama-3.1-8B-Instruct"  # base (before fine-tuning)
+LLAMA_BASE_MODEL    = "TinyLlama/TinyLlama-1.1B-Chat-v1.0" # faster for cpu only "unsloth/Meta-Llama-3.1-8B-Instruct"  # base (before fine-tuning)
 LLAMA_FINETUNED     = "finetuned-llama"                     # name when served via vLLM
 LLAMA_VLLM_URL      = os.getenv("LLAMA_VLLM_URL", "http://localhost:8000/v1")
 
 # Mistral settings (used when MODEL_BACKEND = "mistral")
 # After: python main.py finetune serve --model mistral
-MISTRAL_BASE_MODEL  = "unsloth/mistral-7b-instruct-v0.3"    # base (before fine-tuning)
+MISTRAL_BASE_MODEL  = "mistralai/Mistral-7B-Instruct-v0.3" # faster for cpu only "unsloth/mistral-7b-instruct-v0.3"    # base (before fine-tuning)
 MISTRAL_FINETUNED   = "finetuned-mistral"                   # name when served via vLLM
 MISTRAL_VLLM_URL    = os.getenv("MISTRAL_VLLM_URL", "http://localhost:8001/v1")
 

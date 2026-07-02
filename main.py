@@ -3,6 +3,14 @@ main.py — unified entry point for the knowledge assistant AI project.
 
 Every pipeline is accessible from here with a single command.
 
+Steps
+1. Ingest              → build the vector store (already done)
+2. Generate data       → seeds.py + generate.py produces training_examples.json
+3. Fine-tune           → trainer.py trains LLaMA/Mistral on that data
+4. Serve fine-tuned    → vLLM serves your model on localhost
+5. Inference           → RAG now calls your fine-tuned model instead of OpenAI
+6. Evaluate            → compare fine-tuned vs base model quality
+
 QUICK START:
   1. Add keys to .env
   2. Generate synthetic data with finetune_data/generate.py and add docs to data/raw/ and/or set GitLab vars in .env
@@ -17,6 +25,19 @@ COMMANDS:
     python main.py ingest --source local gitlab --reset
     python main.py ingest --source gitlab --no-issues --branch main
     python main.py ingest --stats
+
+  generate synthetic data 
+    -  generate json files inside data/generated/
+    - merge files inside a single file data/training_examples.json
+    py -m generate_synthetic_data.generate --backend ollama --all
+    py -m generate_synthetic_data.generate --backend ollama --synthetic
+    py -m generate_synthetic_data.generate --backend ollama --distillation
+    py -m generate_synthetic_data.generate --backend ollama --tone
+    py -m generate_synthetic_data.generate --backend ollama --structured
+    py -m generate_synthetic_data.generate --backend ollama --reasoning
+    py -m generate_synthetic_data.generate --backend ollama --refusals
+    py -m generate_synthetic_data.generate --merge
+    py -m generate_synthetic_data.generate --stats
 
   chat     — RAG question answering (no agent, just retrieval + LLM)
     python main.py chat
